@@ -18,6 +18,7 @@ class BlackScholes:
         self.volatility = volatility
         self.interest_rate = interest_rate
         self.dividend_yield = dividend_yield
+        self.implied_volatility = None
 
     def run(self):
         S = self.current_price
@@ -51,9 +52,6 @@ class BlackScholes:
         self.call_rho = K * T * exp(-r * T) * norm.cdf(d2)
         self.put_rho = -K * T * exp(-r * T) * norm.cdf(-d2)
 
-        # Implied Volatility
-        self.implied_volatility = self.calculate_implied_volatility()
-
     def calculate_pnl(self, purchase_price, option_type='call'):
         if option_type == 'call':
             return self.call_price - purchase_price
@@ -67,9 +65,16 @@ class BlackScholes:
             market_price = self.call_price if option_type == 'call' else self.put_price
 
         def option_price_diff(sigma):
-            self.volatility = sigma
-            self.run()
-            model_price = self.call_price if option_type == 'call' else self.put_price
+            temp_model = BlackScholes(
+                self.time_to_maturity,
+                self.strike,
+                self.current_price,
+                sigma,
+                self.interest_rate,
+                self.dividend_yield
+            )
+            temp_model.run()
+            model_price = temp_model.call_price if option_type == 'call' else temp_model.put_price
             return model_price - market_price
 
         try:
@@ -99,4 +104,7 @@ if __name__ == "__main__":
     print(f"Put Theta: {bs.put_theta:.4f}")
     print(f"Call Rho: {bs.call_rho:.4f}")
     print(f"Put Rho: {bs.put_rho:.4f}")
-    print(f"Implied Volatility: {bs.implied_volatility:.4f}")
+    
+    # Calculate implied volatility
+    implied_vol = bs.calculate_implied_volatility()
+    print(f"Implied Volatility: {implied_vol:.4f}")
