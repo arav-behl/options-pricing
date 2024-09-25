@@ -222,4 +222,4 @@ st.write(f"Monte Carlo Put Price: ${mc_put_price:.2f}")
 
 # Add a footer
 st.markdown("---")
-st.markdown("Developed by [Arav Behl](https://www.linkedin.com/in/arav-behl-0524a6230/) | [GitHub](https://github.com/yourusername)")
+st.markdown("Developed by [Arav Behl](https://www.linkedin.com/in/arav-behl-0524a6230/) | [GitHub](https://github.com/arav-behl)")
