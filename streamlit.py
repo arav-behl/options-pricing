@@ -56,8 +56,10 @@ st.markdown("""
 
 # Sidebar
 with st.sidebar:
-st.title("📈 Advanced Option Analytics")
-st.write("Developed by [Arav Behl](https://www.linkedin.com/in/arav-behl-0524a6230/)")
+   st.title("📈 Advanced Option Analytics")
+   st.write("Developed by [Arav Behl](https://www.linkedin.com/in/arav-behl-0524a6230/)")
+   
+
 
 # Input parameters
 current_price = st.number_input("Current Asset Price", value=100.0, step=0.01)
