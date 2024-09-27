@@ -3,226 +3,238 @@ import pandas as pd
 import numpy as np
 from scipy.stats import norm
 import plotly.graph_objects as go
-import plotly.express as px
 from numpy import log, sqrt, exp
 import matplotlib.pyplot as plt
 import seaborn as sns
 from blackscholes import BlackScholes
 
+#######################
 # Page configuration
 st.set_page_config(
-page_title="Advanced Option Analytics Platform",
-page_icon="📈",
-layout="wide",
-initial_sidebar_state="expanded")
+    page_title="Black-Scholes Option Pricing Model",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded")
 
-# Custom CSS for a more professional look
+
+# Custom CSS to inject into Streamlit
 st.markdown("""
 <style>
-   .reportview-container {
-       background: #0e1117;
-   }
-   .main {
-       background: #0e1117;
-       color: #ffffff;
-   }
-   .stButton>button {
-       background-color: #4CAF50;
-       color: white;
-       font-weight: bold;
-   }
-   .stTextInput>div>div>input {
-       background-color: #262730;
-       color: #ffffff;
-   }
-   h1 {
-       color: #ffffff;
-       font-weight: bold;
-   }
-   h2, h3 {
-       color: #ffffff;
-   }
-   .sidebar .sidebar-content {
-       background-color: #262730;
-   }
-   .Widget>label {
-       color: #ffffff;
-   }
-   .stSlider>div>div>div>div {
-       background-color: #4CAF50;
-   }
+/* Adjust the size and alignment of the CALL and PUT value containers */
+.metric-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 8px; /* Adjust the padding to control height */
+    width: auto; /* Auto width for responsiveness, or set a fixed width if necessary */
+    margin: 0 auto; /* Center the container */
+}
+
+/* Custom classes for CALL and PUT values */
+.metric-call {
+    background-color: #90ee90; /* Light green background */
+    color: black; /* Black font color */
+    margin-right: 10px; /* Spacing between CALL and PUT */
+    border-radius: 10px; /* Rounded corners */
+}
+
+.metric-put {
+    background-color: #ffcccb; /* Light red background */
+    color: black; /* Black font color */
+    border-radius: 10px; /* Rounded corners */
+}
+
+/* Style for the value text */
+.metric-value {
+    font-size: 1.5rem; /* Adjust font size */
+    font-weight: bold;
+    margin: 0; /* Remove default margins */
+}
+
+/* Style for the label text */
+.metric-label {
+    font-size: 1rem; /* Adjust font size */
+    margin-bottom: 4px; /* Spacing between label and value */
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
+# Sidebar for User Inputs
 with st.sidebar:
-   st.title("📈 Advanced Option Analytics")
-   st.write("Developed by [Arav Behl](https://www.linkedin.com/in/arav-behl-0524a6230/)")
-   
+    st.title("📊 Black-Scholes Model")
+    st.write("`Created by:`")
+    linkedin_url = "https://www.linkedin.com/in/arav-behl-0524a6230/"
+    st.markdown(f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: inherit;"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">`Arav Behl`</a>', unsafe_allow_html=True)
+
+    current_price = st.number_input("Current Asset Price", value=100.0)
+    strike = st.number_input("Strike Price", value=100.0)
+    time_to_maturity = st.number_input("Time to Maturity (Years)", value=1.0)
+    volatility = st.number_input("Volatility (σ)", value=0.2)
+    interest_rate = st.number_input("Risk-Free Interest Rate", value=0.05)
+    call_purchase_price = st.number_input("Call Purchase Price", value=10.0)
+    put_purchase_price = st.number_input("Put Purchase Price", value=10.0)
+
+    st.markdown("---")
+    calculate_btn = st.button('Heatmap Parameters')
+    spot_min = st.number_input('Min Spot Price', min_value=0.01, value=current_price*0.8, step=0.01)
+    spot_max = st.number_input('Max Spot Price', min_value=0.01, value=current_price*1.2, step=0.01)
+    vol_min = st.slider('Min Volatility for Heatmap', min_value=0.01, max_value=1.0, value=volatility*0.5, step=0.01)
+    vol_max = st.slider('Max Volatility for Heatmap', min_value=0.01, max_value=1.0, value=volatility*1.5, step=0.01)
+    
+    spot_range = np.linspace(spot_min, spot_max, 10)
+    vol_range = np.linspace(vol_min, vol_max, 10)
+
+    st.markdown("---")
+    st.subheader("Market Prices for Implied Volatility")
+    market_call_price = st.number_input("Market Call Price", value=call_purchase_price, step=0.01)
+    market_put_price = st.number_input("Market Put Price", value=put_purchase_price, step=0.01)
 
 
-# Input parameters
-current_price = st.number_input("Current Asset Price", value=100.0, step=0.01)
-strike = st.number_input("Strike Price", value=100.0, step=0.01)
-time_to_maturity = st.number_input("Time to Maturity (Years)", value=1.0, step=0.01)
-volatility = st.number_input("Volatility (σ)", value=0.2, step=0.01)
-interest_rate = st.number_input("Risk-Free Interest Rate", value=0.05, step=0.01)
-dividend_yield = st.number_input("Dividend Yield", value=0.0, step=0.01)
+def plot_heatmap(bs_model, spot_range, vol_range, strike, call_purchase_price, put_purchase_price):
+    call_pnl = np.zeros((len(vol_range), len(spot_range)))
+    put_pnl = np.zeros((len(vol_range), len(spot_range)))
+    
+    for i, vol in enumerate(vol_range):
+        for j, spot in enumerate(spot_range):
+            bs_temp = BlackScholes(
+                time_to_maturity=bs_model.time_to_maturity,
+                strike=strike,
+                current_price=spot,
+                volatility=vol,
+                interest_rate=bs_model.interest_rate
+            )
+            bs_temp.run()
+            call_pnl[i, j] = bs_temp.calculate_pnl(call_purchase_price, option_type='call')
+            put_pnl[i, j] = bs_temp.calculate_pnl(put_purchase_price, option_type='put')
+    
+    # Plotting Call P&L Heatmap
+    fig_call, ax_call = plt.subplots(figsize=(10, 8))
+    sns.heatmap(call_pnl, xticklabels=np.round(spot_range, 2), yticklabels=np.round(vol_range, 2), annot=True, fmt=".2f", cmap="RdYlGn", ax=ax_call)
+    ax_call.set_title('CALL P&L')
+    ax_call.set_xlabel('Spot Price')
+    ax_call.set_ylabel('Volatility')
+    
+    # Plotting Put P&L Heatmap
+    fig_put, ax_put = plt.subplots(figsize=(10, 8))
+    sns.heatmap(put_pnl, xticklabels=np.round(spot_range, 2), yticklabels=np.round(vol_range, 2), annot=True, fmt=".2f", cmap="RdYlGn", ax=ax_put)
+    ax_put.set_title('PUT P&L')
+    ax_put.set_xlabel('Spot Price')
+    ax_put.set_ylabel('Volatility')
+    
+    return fig_call, fig_put
 
-st.markdown("---")
-st.subheader("Heatmap Parameters")
-spot_min = st.number_input('Min Spot Price', min_value=0.01, value=current_price*0.8, step=0.01)
-spot_max = st.number_input('Max Spot Price', min_value=0.01, value=current_price*1.2, step=0.01)
-vol_min = st.slider('Min Volatility', min_value=0.01, max_value=1.0, value=volatility*0.5, step=0.01)
-vol_max = st.slider('Max Volatility', min_value=0.01, max_value=1.0, value=volatility*1.5, step=0.01)
 
-spot_range = np.linspace(spot_min, spot_max, 20)
-vol_range = np.linspace(vol_min, vol_max, 20)
+# Main Page for Output Display
+st.title("Black-Scholes Pricing Model")
 
-# Main content
-st.title("Advanced Option Analytics Platform")
+# Table of Inputs
+input_data = {
+    "Current Asset Price": [current_price],
+    "Strike Price": [strike],
+    "Time to Maturity (Years)": [time_to_maturity],
+    "Volatility (σ)": [volatility],
+    "Risk-Free Interest Rate": [interest_rate],
+    "Call Purchase Price": [call_purchase_price],
+    "Put Purchase Price": [put_purchase_price],
+}
+input_df = pd.DataFrame(input_data)
+st.table(input_df)
 
-# Calculate option prices and Greeks
-bs_model = BlackScholes(time_to_maturity, strike, current_price, volatility, interest_rate, dividend_yield)
+# Calculate Call and Put values
+bs_model = BlackScholes(time_to_maturity, strike, current_price, volatility, interest_rate)
 bs_model.run()
+call_price, put_price = bs_model.call_price, bs_model.put_price
 
-# Display key metrics
-col1, col2, col3, col4 = st.columns(4)
+# Display Call and Put Values in colored tables
+col1, col2 = st.columns([1,1], gap="small")
+
 with col1:
-st.metric("Call Price", f"${bs_model.call_price:.2f}")
+    # Using the custom class for CALL value
+    st.markdown(f"""
+        <div class="metric-container metric-call">
+            <div>
+                <div class="metric-label">CALL Value</div>
+                <div class="metric-value">${call_price:.2f}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
 with col2:
-st.metric("Put Price", f"${bs_model.put_price:.2f}")
-with col3:
-st.metric("Call Delta", f"{bs_model.call_delta:.4f}")
-with col4:
-st.metric("Put Delta", f"{bs_model.put_delta:.4f}")
+    # Using the custom class for PUT value
+    st.markdown(f"""
+        <div class="metric-container metric-put">
+            <div>
+                <div class="metric-label">PUT Value</div>
+                <div class="metric-value">${put_price:.2f}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-# Greeks and additional metrics
-st.subheader("Option Greeks and Metrics")
-greeks_df = pd.DataFrame({
-"Metric": ["Gamma", "Vega", "Theta", "Rho", "Implied Volatility"],
-"Call": [bs_model.call_gamma, bs_model.call_vega, bs_model.call_theta, bs_model.call_rho, bs_model.implied_volatility],
-"Put": [bs_model.put_gamma, bs_model.put_vega, bs_model.put_theta, bs_model.put_rho, bs_model.implied_volatility]
-})
-st.table(greeks_df.set_index("Metric").style.format("{:.4f}"))
+st.markdown("")
+st.title("Options Price - Interactive Heatmap")
+st.info("Explore how option prices fluctuate with varying 'Spot Prices and Volatility' levels using interactive heatmap parameters, all while maintaining a constant 'Strike Price'.")
 
-# Interactive Payoff Diagram
-st.subheader("Option Payoff Diagram")
-spot_prices = np.linspace(current_price * 0.5, current_price * 1.5, 100)
-call_payoffs = np.maximum(spot_prices - strike, 0) - bs_model.call_price
-put_payoffs = np.maximum(strike - spot_prices, 0) - bs_model.put_price
+# Interactive Sliders and Heatmaps for Call and Put Options
+col1, col2 = st.columns([1,1], gap="small")
 
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=spot_prices, y=call_payoffs, mode='lines', name='Call Payoff'))
-fig.add_trace(go.Scatter(x=spot_prices, y=put_payoffs, mode='lines', name='Put Payoff'))
-fig.update_layout(
-title='Option Payoff Diagram',
-xaxis_title='Spot Price',
-yaxis_title='Profit/Loss',
-template="plotly_dark"
-)
-st.plotly_chart(fig, use_container_width=True)
+with col1:
+    st.subheader("Call P&L Heatmap")
+    heatmap_fig_call, _ = plot_heatmap(bs_model, spot_range, vol_range, strike, call_purchase_price, put_purchase_price)
+    st.pyplot(heatmap_fig_call)
 
-# Sensitivity Analysis
-st.subheader("Sensitivity Analysis")
-sensitivity_params = ['Spot Price', 'Volatility', 'Time to Maturity', 'Interest Rate']
-selected_param = st.selectbox("Select parameter for sensitivity analysis", sensitivity_params)
+with col2:
+    st.subheader("Put P&L Heatmap")
+    _, heatmap_fig_put = plot_heatmap(bs_model, spot_range, vol_range, strike, call_purchase_price, put_purchase_price)
+    st.pyplot(heatmap_fig_put)
 
-param_range = np.linspace(0.5, 1.5, 100)
-call_prices = []
-put_prices = []
+# Calculate and display implied volatilities
+st.markdown("---")
+st.subheader("Implied Volatility")
 
-for param in param_range:
-if selected_param == 'Spot Price':
-bs_temp = BlackScholes(time_to_maturity, strike, current_price * param, volatility, interest_rate, dividend_yield)
-elif selected_param == 'Volatility':
-bs_temp = BlackScholes(time_to_maturity, strike, current_price, volatility * param, interest_rate, dividend_yield)
-elif selected_param == 'Time to Maturity':
-bs_temp = BlackScholes(time_to_maturity * param, strike, current_price, volatility, interest_rate, dividend_yield)
-else:  # Interest Rate
-bs_temp = BlackScholes(time_to_maturity, strike, current_price, volatility, interest_rate * param, dividend_yield)
-
-bs_temp.run()
-call_prices.append(bs_temp.call_price)
-put_prices.append(bs_temp.put_price)
-
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=param_range, y=call_prices, mode='lines', name='Call Price'))
-fig.add_trace(go.Scatter(x=param_range, y=put_prices, mode='lines', name='Put Price'))
-fig.update_layout(
-title=f'Option Price Sensitivity to {selected_param}',
-xaxis_title=f'{selected_param} (relative to current)',
-yaxis_title='Option Price',
-template="plotly_dark"
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# Heatmaps for Call and Put P&L
-st.subheader("Option P&L Heatmaps")
 col1, col2 = st.columns(2)
 
-def plot_heatmap(option_type):
-pnl = np.zeros((len(vol_range), len(spot_range)))
-for i, vol in enumerate(vol_range):
-for j, spot in enumerate(spot_range):
-bs_temp = BlackScholes(time_to_maturity, strike, spot, vol, interest_rate, dividend_yield)
-bs_temp.run()
-if option_type == 'call':
-pnl[i, j] = bs_temp.call_price - bs_model.call_price
-else:
-pnl[i, j] = bs_temp.put_price - bs_model.put_price
-
-fig = px.imshow(pnl, x=spot_range, y=vol_range, color_continuous_scale="RdYlGn",
-labels=dict(x="Spot Price", y="Volatility", color="P&L"),
-title=f"{option_type.capitalize()} Option P&L")
-fig.update_layout(coloraxis_colorbar=dict(title="P&L"), template="plotly_dark")
-return fig
-
 with col1:
-st.plotly_chart(plot_heatmap('call'), use_container_width=True)
+    implied_vol_call = BlackScholes.calculate_implied_volatility(
+        market_call_price, 'call', current_price, strike, time_to_maturity, interest_rate
+    )
+    st.metric("Implied Volatility (Call)", f"{implied_vol_call:.4f}" if implied_vol_call else "N/A")
 
 with col2:
-st.plotly_chart(plot_heatmap('put'), use_container_width=True)
+    implied_vol_put = BlackScholes.calculate_implied_volatility(
+        market_put_price, 'put', current_price, strike, time_to_maturity, interest_rate
+    )
+    st.metric("Implied Volatility (Put)", f"{implied_vol_put:.4f}" if implied_vol_put else "N/A")
 
-# Monte Carlo Simulation
-st.subheader("Monte Carlo Simulation")
-num_simulations = st.slider("Number of Simulations", min_value=1000, max_value=10000, value=5000, step=1000)
-num_steps = 252  # Assuming daily steps for a year
+st.info("Implied volatility is calculated based on the market prices of options. It represents the market's expectation of future volatility.")
 
-def simulate_price_path(S, T, r, sigma, steps):
-dt = T / steps
-price_path = [S]
-for _ in range(steps):
-dS = S * (r * dt + sigma * np.sqrt(dt) * np.random.normal())
-S += dS
-price_path.append(S)
-return price_path
-
-simulated_paths = [simulate_price_path(current_price, time_to_maturity, interest_rate, volatility, num_steps) for _ in range(num_simulations)]
-
-fig = go.Figure()
-for path in simulated_paths[:100]:  # Plot first 100 paths
-fig.add_trace(go.Scatter(y=path, mode='lines', line=dict(width=1), opacity=0.3))
-fig.update_layout(
-title='Monte Carlo Simulation of Asset Price Paths',
-xaxis_title='Time Steps',
-yaxis_title='Asset Price',
-template="plotly_dark"
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# Calculate option prices based on simulated paths
-final_prices = [path[-1] for path in simulated_paths]
-call_payoffs = np.maximum(np.array(final_prices) - strike, 0)
-put_payoffs = np.maximum(strike - np.array(final_prices), 0)
-
-mc_call_price = np.mean(call_payoffs) * np.exp(-interest_rate * time_to_maturity)
-mc_put_price = np.mean(put_payoffs) * np.exp(-interest_rate * time_to_maturity)
-
-st.write(f"Monte Carlo Call Price: ${mc_call_price:.2f}")
-st.write(f"Monte Carlo Put Price: ${mc_put_price:.2f}")
-
-# Add a footer
+# Add a new section for Implied Volatility Surface
 st.markdown("---")
-st.markdown("Developed by [Arav Behl](https://www.linkedin.com/in/arav-behl-0524a6230/) | [GitHub](https://github.com/yourusername)")
-st.markdown("Developed by [Arav Behl](https://www.linkedin.com/in/arav-behl-0524a6230/) | [GitHub](https://github.com/arav-behl)")
+st.subheader("Implied Volatility Surface")
+
+# Create a range of strike prices and times to maturity
+strike_range = np.linspace(strike * 0.8, strike * 1.2, 10)
+time_range = np.linspace(0.1, 2, 10)
+
+# Calculate implied volatility surface for call options
+iv_surface = np.zeros((len(strike_range), len(time_range)))
+
+for i, k in enumerate(strike_range):
+    for j, t in enumerate(time_range):
+        iv = BlackScholes.calculate_implied_volatility(
+            market_call_price, 'call', current_price, k, t, interest_rate
+        )
+        iv_surface[i, j] = iv if iv else np.nan
+
+# Plot the implied volatility surface
+fig, ax = plt.subplots(figsize=(10, 8))
+X, Y = np.meshgrid(time_range, strike_range)
+surf = ax.pcolormesh(X, Y, iv_surface, cmap='viridis', shading='auto')
+ax.set_xlabel('Time to Maturity')
+ax.set_ylabel('Strike Price')
+ax.set_title('Implied Volatility Surface (Call Options)')
+fig.colorbar(surf, ax=ax, label='Implied Volatility')
+
+st.pyplot(fig)
+
+st.info("The Implied Volatility Surface shows how implied volatility varies with different strike prices and times to maturity.")
